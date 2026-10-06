@@ -44,6 +44,9 @@ func (s *Server) routes() {
 
 	// 4. Primary Sentiment Inference API
 	s.mux.HandleFunc("POST /v1/sentiment/analyze", s.handleAnalyze)
+
+	// 5. Reinforcement Learning Feedback Loop API
+	s.mux.HandleFunc("POST /v1/sentiment/feedback", s.handleFeedback)
 }
 
 // Handler returns the HTTP handler with logging, CORS, and panic recovery middleware applied.
@@ -75,6 +78,31 @@ func (s *Server) handleAnalyze(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.respondJSON(w, http.StatusOK, resp)
+}
+
+func (s *Server) handleFeedback(w http.ResponseWriter, r *http.Request) {
+	var fb engine.FeedbackRequest
+	if err := json.NewDecoder(r.Body).Decode(&fb); err != nil {
+		s.respondError(w, http.StatusBadRequest, fmt.Sprintf("invalid JSON payload: %v", err))
+		return
+	}
+
+	fb.Text = strings.TrimSpace(fb.Text)
+	if fb.Text == "" && fb.RequestID == "" {
+		s.respondError(w, http.StatusBadRequest, "either 'text' or 'request_id' must be provided")
+		return
+	}
+
+	if err := s.router.RecordFeedback(&fb); err != nil {
+		s.respondError(w, http.StatusInternalServerError, fmt.Sprintf("failed to record feedback: %v", err))
+		return
+	}
+
+	s.respondJSON(w, http.StatusOK, engine.FeedbackResponse{
+		Status:       "success",
+		Message:      "reinforcement learning feedback recorded successfully",
+		UpdatedStats: s.router.BanditStats(),
+	})
 }
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {

@@ -34,6 +34,7 @@ type Request struct {
 
 // Response defines the standardized response payload matching the Sentix API specification.
 type Response struct {
+	RequestID  string          `json:"request_id,omitempty"`
 	Status     string          `json:"status"`
 	Task       string          `json:"task"`
 	EngineUsed string          `json:"engine_used"`
@@ -61,4 +62,23 @@ type Analyzer interface {
 	Tier() int
 	Analyze(ctx context.Context, req *Request) (*Response, error)
 	Close() error
+}
+
+// FeedbackRequest captures user or downstream reward signals for reinforcement learning.
+type FeedbackRequest struct {
+	RequestID      string  `json:"request_id,omitempty"`
+	Text           string  `json:"text"`
+	EngineUsed     string  `json:"engine_used,omitempty"`
+	PredictedLabel string  `json:"predicted_label,omitempty"`
+	CorrectLabel   string  `json:"correct_label,omitempty"`
+	Reward         float64 `json:"reward"` // Reward value, e.g., +1.0 (positive) to -1.0 (negative)
+	LatencyMs      float64 `json:"latency_ms,omitempty"`
+	Comment        string  `json:"comment,omitempty"`
+}
+
+// FeedbackResponse returns acknowledgment and updated bandit statistics.
+type FeedbackResponse struct {
+	Status       string                 `json:"status"`
+	Message      string                 `json:"message"`
+	UpdatedStats map[string]interface{} `json:"updated_stats,omitempty"`
 }

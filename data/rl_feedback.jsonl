@@ -1,0 +1,2 @@
+{"timestamp":"2026-10-06T19:02:58Z","request_id":"req-18dc0606cfc20c10-1","text":"The display is crisp and vivid, but customer service was frustratingly slow.","engine_used":"onnx_distilbert_int8","predicted_label":"NEGATIVE","correct_label":"NEGATIVE","reward":1,"latency_ms":9.3}
+{"timestamp":"2026-10-06T19:02:58Z","request_id":"req-sample-neg","text":"Ambiguous sarcasm here.","engine_used":"tier1_purego_tfidf_logreg","predicted_label":"positive","correct_label":"negative","reward":-1,"latency_ms":0.05}

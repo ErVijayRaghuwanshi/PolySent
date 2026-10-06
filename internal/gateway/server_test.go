@@ -127,3 +127,35 @@ func TestAnalyzeEndpoint(t *testing.T) {
 		t.Errorf("Expected status 400 for empty text, got %d", badW.Code)
 	}
 }
+
+func TestFeedbackEndpoint(t *testing.T) {
+	srv := setupTestServer(t)
+
+	body, _ := json.Marshal(map[string]interface{}{
+		"request_id":      "req-12345",
+		"text":            "The display is crisp and vivid!",
+		"engine_used":     "tier1_purego_tfidf_logreg",
+		"predicted_label": "positive",
+		"correct_label":   "positive",
+		"reward":          1.0,
+		"latency_ms":      0.045,
+	})
+	req := httptest.NewRequest("POST", "/v1/sentiment/feedback", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	srv.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("Expected status 200 for feedback, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var resp engine.FeedbackResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("Failed to decode feedback response: %v", err)
+	}
+
+	if resp.Status != "success" {
+		t.Errorf("Expected status 'success', got %s", resp.Status)
+	}
+}

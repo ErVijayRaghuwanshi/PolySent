@@ -1,0 +1,30 @@
+{
+  "total_experiences": 2,
+  "overall_average_reward": 0.0,
+  "tiers": {
+    "onnx_distilbert_int8": {
+      "selections": 1,
+      "share_pct": 50.0,
+      "average_reward": 1.0,
+      "avg_latency_ms": 9.3,
+      "accuracy_pct": 100.0
+    },
+    "tier1_purego_tfidf_logreg": {
+      "selections": 1,
+      "share_pct": 50.0,
+      "average_reward": -1.0,
+      "avg_latency_ms": 0.05,
+      "accuracy_pct": "N/A"
+    }
+  },
+  "misclassified_samples_count": 1,
+  "active_learning_candidates": [
+    {
+      "text": "Ambiguous sarcasm here.",
+      "predicted": "positive",
+      "actual": "negative",
+      "engine": "tier1_purego_tfidf_logreg",
+      "reward": -1.0
+    }
+  ]
+}

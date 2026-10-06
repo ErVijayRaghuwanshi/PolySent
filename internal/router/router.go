@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sync/atomic"
+	"time"
 
 	"github.com/ervijay/polysent/internal/engine"
 )
@@ -22,91 +23,109 @@ type Router struct {
 	tier1   engine.Analyzer
 	tier2   engine.Analyzer
 	tier3   engine.Analyzer
+	bandit  *ContextualBandit
 	metrics Metrics
 }
 
-// NewRouter constructs a router with registered analyzers.
+// NewRouter constructs a router with registered analyzers and RL bandit.
 func NewRouter(tier1, tier2, tier3 engine.Analyzer) *Router {
 	return &Router{
-		tier1: tier1,
-		tier2: tier2,
-		tier3: tier3,
+		tier1:  tier1,
+		tier2:  tier2,
+		tier3:  tier3,
+		bandit: NewContextualBandit("data/rl_feedback.jsonl"),
 	}
 }
 
 // GetMetrics returns snapshot of routing telemetry.
-func (r *Router) GetMetrics() Metrics {
-	return Metrics{
-		TotalRequests: atomic.LoadInt64(&r.metrics.TotalRequests),
-		Tier1Hits:     atomic.LoadInt64(&r.metrics.Tier1Hits),
-		Tier2Hits:     atomic.LoadInt64(&r.metrics.Tier2Hits),
-		Tier3Hits:     atomic.LoadInt64(&r.metrics.Tier3Hits),
-		Fallbacks:     atomic.LoadInt64(&r.metrics.Fallbacks),
+func (r *Router) GetMetrics() map[string]interface{} {
+	return map[string]interface{}{
+		"total_requests": atomic.LoadInt64(&r.metrics.TotalRequests),
+		"tier1_hits":     atomic.LoadInt64(&r.metrics.Tier1Hits),
+		"tier2_hits":     atomic.LoadInt64(&r.metrics.Tier2Hits),
+		"tier3_hits":     atomic.LoadInt64(&r.metrics.Tier3Hits),
+		"fallbacks":      atomic.LoadInt64(&r.metrics.Fallbacks),
+		"rl_bandit":      r.bandit.Stats(),
 	}
+}
+
+// RecordFeedback routes external rewards into the RL bandit optimizer.
+func (r *Router) RecordFeedback(fb *engine.FeedbackRequest) error {
+	return r.bandit.RecordReward(fb)
+}
+
+// BanditStats returns the current RL bandit arm statistics.
+func (r *Router) BanditStats() map[string]interface{} {
+	return r.bandit.Stats()
 }
 
 // Route directs incoming requests to the optimal engine based on SLA strategy and availability.
 func (r *Router) Route(ctx context.Context, req *engine.Request) (*engine.Response, error) {
-	atomic.AddInt64(&r.metrics.TotalRequests, 1)
+	reqCount := atomic.AddInt64(&r.metrics.TotalRequests, 1)
+	reqID := fmt.Sprintf("req-%x-%d", time.Now().UnixNano(), reqCount)
 
-	strategy := engine.Strategy(req.Strategy)
-	if strategy == "" || strategy == "auto" {
-		// Dynamic decision: short straightforward text uses Tier 1; otherwise Tier 2
-		if len(req.Text) < 25 && r.tier1 != nil {
-			strategy = engine.StrategyUltraFast
-		} else if r.tier2 != nil {
-			strategy = engine.StrategyBalanced
-		} else {
-			strategy = engine.StrategyUltraFast
-		}
-	}
+	strategy := r.bandit.SelectArm(req)
+
+	var resp *engine.Response
+	var err error
 
 	switch strategy {
 	case engine.StrategyUltraFast:
 		if r.tier1 != nil {
 			atomic.AddInt64(&r.metrics.Tier1Hits, 1)
-			return r.tier1.Analyze(ctx, req)
+			resp, err = r.tier1.Analyze(ctx, req)
 		}
 
 	case engine.StrategyBalanced:
 		if r.tier2 != nil {
-			resp, err := r.tier2.Analyze(ctx, req)
+			resp, err = r.tier2.Analyze(ctx, req)
 			if err == nil {
 				atomic.AddInt64(&r.metrics.Tier2Hits, 1)
-				return resp, nil
+				break
 			}
 			// Fallback to Tier 1 on Tier 2 failure
 			atomic.AddInt64(&r.metrics.Fallbacks, 1)
 		}
 		if r.tier1 != nil {
 			atomic.AddInt64(&r.metrics.Tier1Hits, 1)
-			return r.tier1.Analyze(ctx, req)
+			resp, err = r.tier1.Analyze(ctx, req)
 		}
 
 	case engine.StrategyDeepContext:
 		if r.tier3 != nil {
-			resp, err := r.tier3.Analyze(ctx, req)
+			resp, err = r.tier3.Analyze(ctx, req)
 			if err == nil {
 				atomic.AddInt64(&r.metrics.Tier3Hits, 1)
-				return resp, nil
+				break
 			}
 			atomic.AddInt64(&r.metrics.Fallbacks, 1)
 		}
 		// Fallback to Tier 2 or Tier 1
 		if r.tier2 != nil {
 			atomic.AddInt64(&r.metrics.Tier2Hits, 1)
-			return r.tier2.Analyze(ctx, req)
+			resp, err = r.tier2.Analyze(ctx, req)
+			if err == nil {
+				break
+			}
 		}
 		if r.tier1 != nil {
 			atomic.AddInt64(&r.metrics.Tier1Hits, 1)
-			return r.tier1.Analyze(ctx, req)
+			resp, err = r.tier1.Analyze(ctx, req)
 		}
 	}
 
 	// Ultimate fallback to whichever analyzer is non-nil
-	if r.tier1 != nil {
+	if resp == nil && err == nil && r.tier1 != nil {
 		atomic.AddInt64(&r.metrics.Tier1Hits, 1)
-		return r.tier1.Analyze(ctx, req)
+		resp, err = r.tier1.Analyze(ctx, req)
+	}
+
+	if err != nil {
+		return nil, err
+	}
+	if resp != nil {
+		resp.RequestID = reqID
+		return resp, nil
 	}
 
 	return nil, fmt.Errorf("no inference engine available to process request")

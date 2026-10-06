@@ -120,6 +120,41 @@ paths:
                 type: object
                 additionalProperties: true
 
+  /v1/sentiment/feedback:
+    post:
+      summary: Submit reinforcement learning feedback / reward signal
+      description: |
+        Captures human or downstream reward feedback (+1.0 to -1.0) for a given inference prediction.
+        Updates online Contextual Bandit routing weights in real-time and logs experiences for offline policy training.
+      operationId: submitFeedback
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FeedbackRequest'
+            example:
+              request_id: "req-18f1a2-1"
+              text: "The display is crisp and vivid, but customer service was frustratingly slow."
+              engine_used: "onnx_distilbert_int8"
+              predicted_label: "NEGATIVE"
+              correct_label: "NEGATIVE"
+              reward: 1.0
+              comment: "Accurate negative polarity detection on mixed review"
+      responses:
+        '200':
+          description: Feedback recorded successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FeedbackResponse'
+        '400':
+          description: Invalid feedback payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
 components:
   schemas:
     AnalyzeRequest:
@@ -175,6 +210,9 @@ components:
         - engine_used
         - latency_ms
       properties:
+        request_id:
+          type: string
+          example: "req-18f1a2-1"
         status:
           type: string
           example: "success"
@@ -267,3 +305,56 @@ components:
         error:
           type: string
           example: "missing required field 'text'"
+
+    FeedbackRequest:
+      type: object
+      required:
+        - reward
+      properties:
+        request_id:
+          type: string
+          description: Unique request ID returned from analyze endpoint.
+          example: "req-18f1a2-1"
+        text:
+          type: string
+          description: Input text analyzed.
+        engine_used:
+          type: string
+          description: Engine tier that produced prediction.
+          example: "onnx_distilbert_int8"
+        predicted_label:
+          type: string
+          description: Predicted sentiment label.
+          example: "NEGATIVE"
+        correct_label:
+          type: string
+          description: User-verified ground-truth sentiment label.
+          example: "NEGATIVE"
+        reward:
+          type: number
+          format: float
+          description: Reinforcement signal from -1.0 (thumbs down/penalty) to +1.0 (thumbs up/reward).
+          example: 1.0
+        latency_ms:
+          type: number
+          format: float
+          example: 9.3
+        comment:
+          type: string
+          example: "Correct classification"
+
+    FeedbackResponse:
+      type: object
+      required:
+        - status
+        - message
+      properties:
+        status:
+          type: string
+          example: "success"
+        message:
+          type: string
+          example: "reinforcement learning feedback recorded successfully"
+        updated_stats:
+          type: object
+          additionalProperties: true

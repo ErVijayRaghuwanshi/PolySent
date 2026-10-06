@@ -84,10 +84,13 @@ func TestRouterStrategies(t *testing.T) {
 
 	// 4. Check Metrics
 	m := r.GetMetrics()
-	if m.TotalRequests < 2 {
-		t.Errorf("Expected >= 2 requests in metrics, got %d", m.TotalRequests)
+	totalReqs := m["total_requests"].(int64)
+	if totalReqs < 2 {
+		t.Errorf("Expected >= 2 requests in metrics, got %d", totalReqs)
 	}
-	if m.Tier1Hits < 1 || m.Tier2Hits < 1 {
+	tier1Hits := m["tier1_hits"].(int64)
+	tier2Hits := m["tier2_hits"].(int64)
+	if tier1Hits < 1 || tier2Hits < 1 {
 		t.Errorf("Expected tier hits recorded, got %+v", m)
 	}
 }
