@@ -77,6 +77,16 @@ Sentix operates as a **Task-Driven Sentiment Gateway** that dynamically routes i
 PolySent/
 ├── Makefile                          # Build and automation targets
 ├── go.mod                            # Go module definition
+├── docs/                             # Architecture & Design Documentation
+│   ├── README.md                     # Documentation Index & Reading Pathways
+│   ├── architecture/                 # High-Level Design (HLD) specifications
+│   │   ├── HLD_OVERVIEW.md           # System-Wide High-Level Design
+│   │   ├── HLD_PYTHON_ML.md          # Python ML Pipeline High-Level Design
+│   │   └── HLD_GO_GATEWAY.md         # Go Serving Gateway High-Level Design
+│   └── lld/                          # Low-Level Design (LLD) specifications
+│       ├── LLD_PYTHON_PIPELINE.md    # Training, ONNX export, INT8 & RL Loop LLD
+│       ├── LLD_GO_GATEWAY.md         # Tokenizer, Session Pool, Router & Swagger LLD
+│       └── LLD_DATA_CONTRACTS.md     # Tensor Signatures, weights.json & Schemas
 ├── cmd/
 │   └── sentix/                       # Go server entrypoint
 ├── internal/
@@ -85,27 +95,21 @@ PolySent/
 │   │   └── tier1/
 │   │       ├── tfidf.go              # Pure Go sub-millisecond TF-IDF engine
 │   │       └── tfidf_test.go         # Tier-1 unit and benchmark tests
-│   ├── router/                       # SLA-driven dynamic request router
-│   ├── tokenizer/                    # C-Go Hugging Face tokenizers wrapper
-│   └── gateway/                      # HTTP/REST API handlers
+│   ├── router/                       # SLA-driven dynamic request router & UCB1 Bandit
+│   ├── tokenizer/                    # Pure Go microsecond WordPiece tokenizer
+│   └── gateway/                      # HTTP/REST API handlers & Swagger UI
 ├── models/
-│   ├── tier1_tfidf/
-│   │   ├── model.onnx                # skl2onnx exported ONNX model
-│   │   ├── weights.json              # Pure Go vocabulary & linear weights
-│   │   └── metadata.json             # Model metadata & schema
-│   └── tier2_distilbert/
-│       ├── model_fp32.onnx           # Baseline PyTorch FP32 ONNX
-│       ├── model_int8.onnx           # Quantized INT8 ONNX
-│       ├── tokenizer.json            # FastTokenizer definition for Go
-│       ├── vocab.txt                 # WordPiece vocabulary
-│       └── metadata.json             # Model contract and benchmark stats
+│   ├── tier1_tfidf/                  # skl2onnx model, JSON weights, metadata
+│   └── tier2_distilbert/             # FP32 & INT8 ONNX, tokenizer.json, vocab.txt
 └── python/
     ├── pyproject.toml                # Python package metadata
-    ├── requirements.txt              # ML dependencies (torch, onnx, optimum, scikit-learn)
+    ├── requirements.txt              # ML dependencies (torch, onnx, datasets)
     └── sentix_ml/
+        ├── dataset_loader.py         # Standardized Hugging Face dataset ingestion
         ├── train_tfidf.py            # Tier-1 training & dual export script
         ├── export_distilbert.py      # Tier-2 ONNX export & INT8 quantization script
-        └── verify_inference.py       # Cross-tier parity and benchmark verification
+        ├── verify_inference.py       # Cross-tier parity and benchmark verification
+        └── rl_loop.py                # Replay buffer analysis & active learning
 ```
 
 ---
@@ -146,14 +150,22 @@ go test -v -bench=. ./internal/engine/tier1/...
 
 ---
 
+## 📚 Architecture & Design Documentation
+Detailed engineering design documents are available in the **[`docs/`](docs/README.md)** directory:
+
+- **[System-Wide High-Level Design (HLD)](docs/architecture/HLD_OVERVIEW.md)**: Multi-tier architecture, SLAs, and Reinforcement Learning loop.
+- **[Python ML High-Level Design](docs/architecture/HLD_PYTHON_ML.md)**: Model training, quantization, and offline active learning.
+- **[Go Serving Gateway High-Level Design](docs/architecture/HLD_GO_GATEWAY.md)**: Concurrency, session pooling, and zero-Cgo serving.
+- **[Python ML Low-Level Design (LLD)](docs/lld/LLD_PYTHON_PIPELINE.md)**: Detailed module specs, mathematical formulations, and export parameters.
+- **[Go Serving Gateway Low-Level Design (LLD)](docs/lld/LLD_GO_GATEWAY.md)**: Tokenizer implementation, UCB1 bandit algorithm, and engine pools.
+- **[Data, Tensor & Schema Contracts](docs/lld/LLD_DATA_CONTRACTS.md)**: Exact ONNX tensor shapes, `weights.json`, and API schemas.
+
+---
+
 ## 🗺️ Next Steps
-1. **Phase 2: Core Go Engine & Tokenizer Integration**:
-   - Integrate `yalue/onnxruntime_go` with session pool manager.
-   - Integrate native tokenization C-bindings using `models/tier2_distilbert/tokenizer.json`.
-   - Implement HTTP REST server (`POST /v1/sentiment/analyze`) in `cmd/sentix`.
-2. **Phase 3: Routing Logic & Tier-3 LLM Gateway**:
-   - Rule-based & confidence-based fallback router.
-   - Ollama / vLLM HTTP adapter for `deep_context` requests.
-3. **Phase 4: Benchmarking & Containerization**:
-   - k6 load-testing suite (50 - 1,000 QPS).
-   - Multi-stage Dockerfile packaging models and Go binary.
+1. **Phase 3: Deep Context & Aspect Extraction**:
+   - DeBERTa sequence-pair ABSA fine-tuning pipeline.
+   - Ollama / vLLM production integration for sarcastic and ambiguous reasoning.
+2. **Phase 4: Benchmarking, Profiling & Dockerization**:
+   - k6 load-test suite simulating 50 to 1,000 requests per second.
+   - Multi-stage Docker image with pre-packaged ONNX models and C-dependencies.
