@@ -6,10 +6,11 @@ Exports:
 3. Model metadata
 """
 
+import argparse
 import json
 import os
 import time
-from typing import Dict, Any, List, Tuple
+from typing import Dict, Any, List, Tuple, Optional
 
 import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -19,6 +20,11 @@ from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
 from skl2onnx import convert_sklearn
 from skl2onnx.common.data_types import StringTensorType
+
+try:
+    from sentix_ml.dataset_loader import load_sentiment_dataset
+except ImportError:
+    from dataset_loader import load_sentiment_dataset
 
 
 # Comprehensive sentiment dataset across varied domains (reviews, electronics, food, customer service)
@@ -126,17 +132,19 @@ def expand_dataset(base_data: List[Tuple[str, str]], repeat: int = 5) -> Tuple[L
 
 def train_and_export(
     output_dir: str = "models/tier1_tfidf",
+    dataset_name: str = "synthetic",
+    max_samples: Optional[int] = None,
     max_features: int = 3000,
     ngram_range: Tuple[int, int] = (1, 2)
 ) -> Dict[str, Any]:
     """Trains TF-IDF + Logistic Regression and exports ONNX + Go-compatible JSON weights."""
     os.makedirs(output_dir, exist_ok=True)
     print("=" * 60)
-    print("Sentix Tier-1: Training Vectorized TF-IDF + Logistic Regression")
+    print(f"Sentix Tier-1: Training Vectorized TF-IDF on '{dataset_name}'")
     print("=" * 60)
 
     # 1. Prepare data
-    raw_texts, raw_labels = expand_dataset(SYNTHETIC_DATASET)
+    raw_texts, raw_labels = load_sentiment_dataset(dataset_name, split="train", max_samples=max_samples)
     X_train, X_val, y_train, y_val = train_test_split(
         raw_texts, raw_labels, test_size=0.2, random_state=42, stratify=raw_labels
     )
@@ -176,8 +184,15 @@ def train_and_export(
     classes = [str(c) for c in clf.classes_]
     vocab = {str(word): int(idx) for word, idx in tfidf.vocabulary_.items()}
     idf = [float(val) for val in tfidf.idf_]
-    coefficients = [[float(v) for v in row] for row in clf.coef_]
-    intercepts = [float(v) for v in clf.intercept_]
+    if len(classes) == 2 and len(clf.coef_) == 1:
+        coefficients = [
+            [0.0 for _ in range(len(clf.coef_[0]))],
+            [float(v) for v in clf.coef_[0]]
+        ]
+        intercepts = [0.0, float(clf.intercept_[0])]
+    else:
+        coefficients = [[float(v) for v in row] for row in clf.coef_]
+        intercepts = [float(v) for v in clf.intercept_]
 
     go_weights = {
         "model_name": "sentix-tier1-tfidf-logreg",
@@ -234,4 +249,14 @@ def train_and_export(
 
 
 if __name__ == "__main__":
-    train_and_export()
+    parser = argparse.ArgumentParser(description="Train and export Sentix Tier-1 TF-IDF + Logistic Regression")
+    parser.add_argument("--dataset", type=str, default="synthetic", choices=["synthetic", "sst2", "tweet_eval"], help="Dataset to train on")
+    parser.add_argument("--max-samples", type=int, default=None, help="Maximum number of training samples")
+    parser.add_argument("--output-dir", type=str, default="models/tier1_tfidf", help="Output directory")
+    args = parser.parse_args()
+
+    train_and_export(
+        output_dir=args.output_dir,
+        dataset_name=args.dataset,
+        max_samples=args.max_samples
+    )
