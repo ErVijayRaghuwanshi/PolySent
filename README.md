@@ -55,6 +55,20 @@ Sentix operates as a **Task-Driven Sentiment Gateway** that dynamically routes i
   - `python/sentix_ml/verify_inference.py` ensures 100% numerical parity between Python ONNX and Pure Go execution.
   - Go unit tests and benchmark suite in `internal/engine/tier1/tfidf_test.go`.
 
+### Phase 2: Core Go Engine, SLA Router & Swagger UI (Completed)
+- [x] **Embedded Swagger UI & OpenAPI 3.0**:
+  - Complete OpenAPI 3.0 specification in `api/openapi.yaml` embedded directly into the binary via `embed.FS`.
+  - Self-contained interactive Swagger UI served at `http://localhost:8080/swagger/` and `http://localhost:8080/docs`.
+- [x] **Native Tokenizer in Pure Go**:
+  - Microsecond WordPiece tokenizer (`internal/tokenizer/wordpiece.go`) loading `tokenizer.json` / `vocab.txt`.
+  - Benchmark: **2.76 microseconds per sentence tokenization**.
+- [x] **Tier-2 ONNX Runtime Worker Pool**:
+  - Thread-safe session pooling via `yalue/onnxruntime_go` (`internal/engine/tier2/onnx_engine.go`).
+  - Single-request latency: **3.9–9.3 ms** (far exceeding the 15–40ms SLA).
+- [x] **SLA-Driven Dynamic Router & LLM Adapter**:
+  - Routing strategies: `ultra_fast` (Tier 1), `balanced` (Tier 2), `deep_context` (Tier 3 fallback).
+  - Live telemetry metrics tracking hits and fallbacks (`GET /metrics`).
+
 ---
 
 ## 📂 Project Structure

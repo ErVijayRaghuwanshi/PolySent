@@ -2,7 +2,7 @@ SHELL := /bin/bash
 PYTHON := python/.venv/bin/python
 UV := uv
 
-.PHONY: all setup-env train-tier1 export-tier2 verify-models build test clean help
+.PHONY: all setup-env train-tier1 export-tier2 verify-models build run test clean help
 
 all: train-tier1 export-tier2 verify-models build
 
@@ -37,6 +37,10 @@ build:
 	@echo "==> Building Sentix Go Gateway..."
 	mkdir -p bin
 	go build -o bin/sentix ./cmd/sentix
+
+run: build
+	@echo "==> Running Sentix Gateway on :8080..."
+	./bin/sentix -port 8080
 
 test:
 	@echo "==> Running Go unit tests..."

@@ -1,0 +1,269 @@
+openapi: 3.0.3
+info:
+  title: Sentix Sentiment & Semantic Classification Gateway
+  description: |
+    Sentix is a high-performance, unified sentiment analysis and semantic classification engine.
+    It bridges offline NLP model development (Python) and production-grade, low-latency microservice serving (Go).
+    
+    ### Serving Tiers:
+    - **Tier 1 (Sub-millisecond)**: Pure Go vectorized TF-IDF + Logistic Regression (`ultra_fast`, < 1ms)
+    - **Tier 2 (Balanced / High-Accuracy)**: Dynamic INT8 Quantized DistilBERT via ONNX Runtime (`balanced`, 15–40ms)
+    - **Tier 3 (Zero-Shot / Complex Context)**: Local LLM fallback via Ollama/vLLM (`deep_context`)
+  version: 1.0.0
+  contact:
+    name: Sentix Engineering
+servers:
+  - url: http://localhost:8080
+    description: Local Gateway Server
+
+paths:
+  /v1/sentiment/analyze:
+    post:
+      summary: Analyze sentiment of input text
+      description: |
+        Classifies sentiment polarity and confidence for document-level, aspect-based, or fine-grained tasks.
+        Dynamically routes inference across performance tiers based on the requested strategy.
+      operationId: analyzeSentiment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AnalyzeRequest'
+            examples:
+              document_level:
+                summary: Document-level sentiment (balanced)
+                value:
+                  text: "The display is crisp and vivid, but customer service was frustratingly slow."
+                  task: "document_level"
+                  strategy: "balanced"
+                  language: "auto"
+              ultra_fast:
+                summary: Sub-millisecond SLA (Tier 1)
+                value:
+                  text: "Outstanding battery life and premium build quality!"
+                  task: "document_level"
+                  strategy: "ultra_fast"
+                  language: "en"
+              aspect_based:
+                summary: Aspect-based sentiment analysis
+                value:
+                  text: "The battery lasts forever, but the camera autofocus is terrible."
+                  task: "aspect_based"
+                  strategy: "balanced"
+                  aspects: ["battery", "camera"]
+      responses:
+        '200':
+          description: Successful sentiment analysis
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalyzeResponse'
+              examples:
+                balanced_response:
+                  summary: Tier-2 DistilBERT INT8 inference response
+                  value:
+                    status: "success"
+                    task: "document_level"
+                    engine_used: "onnx_distilbert_int8"
+                    latency_ms: 15.62
+                    overall:
+                      label: "positive"
+                      score: 0.998
+                tier1_response:
+                  summary: Tier-1 Pure Go sub-millisecond response
+                  value:
+                    status: "success"
+                    task: "document_level"
+                    engine_used: "tier1_purego_tfidf_logreg"
+                    latency_ms: 0.035
+                    overall:
+                      label: "positive"
+                      score: 0.752
+        '400':
+          description: Invalid request payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal processing or engine inference error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /health:
+    get:
+      summary: Liveness and Readiness Probe
+      description: Returns service health, uptime, and status of loaded inference engines.
+      operationId: getHealth
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+  /metrics:
+    get:
+      summary: Serving and Latency Metrics
+      description: Returns operational telemetry including request counts, tier distribution, and latency.
+      operationId: getMetrics
+      responses:
+        '200':
+          description: Gateway metrics telemetry
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+
+components:
+  schemas:
+    AnalyzeRequest:
+      type: object
+      required:
+        - text
+        - task
+      properties:
+        text:
+          type: string
+          description: The raw text string to analyze.
+          example: "The display is crisp and vivid, but customer service was frustratingly slow."
+        task:
+          type: string
+          enum:
+            - document_level
+            - aspect_based
+            - multilingual
+            - fine_grained
+          default: document_level
+          description: The classification granularity or objective.
+        strategy:
+          type: string
+          enum:
+            - ultra_fast
+            - balanced
+            - deep_context
+            - auto
+          default: balanced
+          description: |
+            SLA-driven routing preference:
+            - `ultra_fast`: Tier 1 pure Go TF-IDF (< 1ms)
+            - `balanced`: Tier 2 INT8 Quantized Transformer (15–40ms)
+            - `deep_context`: Tier 3 Local LLM Fallback
+            - `auto`: Dynamic routing based on complexity & confidence
+        language:
+          type: string
+          default: auto
+          description: ISO 639-1 language code or "auto" for automatic detection.
+          example: "auto"
+        aspects:
+          type: array
+          items:
+            type: string
+          description: Target features/entities for aspect-based sentiment tasks.
+          example: ["display", "customer service"]
+
+    AnalyzeResponse:
+      type: object
+      required:
+        - status
+        - task
+        - engine_used
+        - latency_ms
+      properties:
+        status:
+          type: string
+          example: "success"
+        task:
+          type: string
+          example: "document_level"
+        engine_used:
+          type: string
+          example: "onnx_distilbert_int8"
+        latency_ms:
+          type: number
+          format: float
+          example: 15.62
+        overall:
+          $ref: '#/components/schemas/SentimentScore'
+        aspects:
+          type: array
+          items:
+            $ref: '#/components/schemas/AspectResult'
+
+    SentimentScore:
+      type: object
+      required:
+        - label
+        - score
+      properties:
+        label:
+          type: string
+          description: Sentiment classification label (e.g., positive, neutral, negative).
+          example: "positive"
+        score:
+          type: number
+          format: float
+          description: Confidence probability score [0.0 - 1.0].
+          example: 0.998
+
+    AspectResult:
+      type: object
+      required:
+        - aspect
+        - sentiment
+        - confidence
+      properties:
+        aspect:
+          type: string
+          example: "display"
+        sentiment:
+          type: string
+          example: "positive"
+        confidence:
+          type: number
+          format: float
+          example: 0.97
+
+    HealthResponse:
+      type: object
+      required:
+        - status
+        - uptime_seconds
+        - engines
+      properties:
+        status:
+          type: string
+          example: "ok"
+        uptime_seconds:
+          type: number
+          example: 120.5
+        engines:
+          type: object
+          properties:
+            tier1_tfidf:
+              type: string
+              example: "ready"
+            tier2_onnx:
+              type: string
+              example: "ready"
+            tier3_llm:
+              type: string
+              example: "configured"
+
+    ErrorResponse:
+      type: object
+      required:
+        - status
+        - error
+      properties:
+        status:
+          type: string
+          example: "error"
+        error:
+          type: string
+          example: "missing required field 'text'"
