@@ -1,0 +1,26 @@
+# Python
+python/.venv/
+**/__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+
+# Go
+bin/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# IDE & OS
+.DS_Store
+.idea/
+.vscode/
+
+# Large artifacts (keep INT8 & TF-IDF models, ignore raw large cache if needed)
+models/tier2_distilbert/model_fp32.onnx

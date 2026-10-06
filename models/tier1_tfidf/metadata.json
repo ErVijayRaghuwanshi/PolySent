@@ -1,0 +1,42 @@
+{
+  "tier": 1,
+  "name": "sentix-tier1-tfidf-logreg",
+  "engine": "tfidf_logistic_regression",
+  "classes": [
+    "negative",
+    "neutral",
+    "positive"
+  ],
+  "vocab_size": 1452,
+  "latency_target": "<1ms",
+  "accuracy": 1.0,
+  "onnx_model_file": "model.onnx",
+  "weights_file": "weights.json",
+  "inputs": [
+    {
+      "name": "text",
+      "type": "string",
+      "shape": [
+        null,
+        1
+      ]
+    }
+  ],
+  "outputs": [
+    {
+      "name": "label",
+      "type": "string",
+      "shape": [
+        null
+      ]
+    },
+    {
+      "name": "probabilities",
+      "type": "map(string, float) or tensor",
+      "shape": [
+        null,
+        3
+      ]
+    }
+  ]
+}

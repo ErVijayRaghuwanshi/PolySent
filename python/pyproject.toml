@@ -1,0 +1,22 @@
+[project]
+name = "sentix-ml"
+version = "0.1.0"
+description = "Sentix ML training, quantization, and ONNX serialization engine"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "numpy>=1.26.0",
+    "scikit-learn>=1.4.0",
+    "skl2onnx>=1.16.0",
+    "onnx>=1.15.0",
+    "onnxruntime>=1.18.0",
+    "torch>=2.2.0",
+    "transformers>=4.40.0",
+    "optimum>=1.20.0",
+    "huggingface-hub>=0.23.0",
+    "tqdm>=4.66.0",
+]
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
