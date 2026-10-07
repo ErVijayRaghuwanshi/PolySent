@@ -18,9 +18,9 @@
   "int8_size_mb": 64.47,
   "size_reduction_pct": 74.77,
   "benchmark_latency_ms": {
-    "fp32": 46.56,
-    "int8": 15.62,
-    "speedup": 2.98
+    "fp32": 34.95,
+    "int8": 13.07,
+    "speedup": 2.67
   },
   "inputs": [
     {
