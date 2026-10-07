@@ -52,7 +52,7 @@ def analyze_rl_performance(records: List[Dict[str, Any]]) -> Dict[str, Any]:
         return {"total_records": 0, "status": "no_data"}
 
     total = len(records)
-    tier_stats = defaultdict(lambda: {"count": 0, "rewards": [], "latencies": [], "correct": 0})
+    tier_stats = defaultdict(lambda: {"count": 0, "rewards": [], "latencies": [], "correct": 0, "labeled": 0})
     misclassified = []
 
     for r in records:
@@ -68,6 +68,7 @@ def analyze_rl_performance(records: List[Dict[str, Any]]) -> Dict[str, Any]:
             tier_stats[engine]["latencies"].append(latency)
 
         if actual:
+            tier_stats[engine]["labeled"] += 1
             if pred == actual:
                 tier_stats[engine]["correct"] += 1
             else:
@@ -83,7 +84,7 @@ def analyze_rl_performance(records: List[Dict[str, Any]]) -> Dict[str, Any]:
     for engine, s in tier_stats.items():
         avg_reward = sum(s["rewards"]) / len(s["rewards"]) if s["rewards"] else 0.0
         avg_latency = sum(s["latencies"]) / len(s["latencies"]) if s["latencies"] else 0.0
-        labeled_count = s["count"] if s["correct"] > 0 else 0
+        labeled_count = s["labeled"]
         accuracy = (s["correct"] / labeled_count * 100) if labeled_count > 0 else None
 
         summary_per_tier[engine] = {

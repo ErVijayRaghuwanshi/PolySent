@@ -88,9 +88,14 @@ func (t *WordPieceTokenizer) Encode(text string, maxLen int) *TokenizedInput {
 	words := t.basicTokenize(text)
 	subwords := make([]string, 0, len(words)*2)
 
+	if maxLen <= 0 {
+		maxLen = 128
+	}
+
 	for _, word := range words {
-		// WordPiece subword breakdown
-		if len(word) > t.maxSubword {
+		// WordPiece subword breakdown using runes for multi-byte UTF-8 safety
+		runes := []rune(word)
+		if len(runes) > t.maxSubword {
 			subwords = append(subwords, "[UNK]")
 			continue
 		}
@@ -99,11 +104,11 @@ func (t *WordPieceTokenizer) Encode(text string, maxLen int) *TokenizedInput {
 		start := 0
 		subTokens := make([]string, 0)
 
-		for start < len(word) {
-			end := len(word)
+		for start < len(runes) {
+			end := len(runes)
 			curSubstr := ""
 			for start < end {
-				substr := word[start:end]
+				substr := string(runes[start:end])
 				if start > 0 {
 					substr = "##" + substr
 				}
@@ -130,8 +135,17 @@ func (t *WordPieceTokenizer) Encode(text string, maxLen int) *TokenizedInput {
 		}
 	}
 
+	// Defensive maxLen bounds
+	if maxLen == 1 {
+		return &TokenizedInput{
+			InputIDs:      []int64{ClsTokenID},
+			AttentionMask: []int64{1},
+			Tokens:        []string{"[CLS]"},
+		}
+	}
+
 	// Truncate to leave room for [CLS] and [SEP]
-	if maxLen > 2 && len(subwords) > maxLen-2 {
+	if len(subwords) > maxLen-2 {
 		subwords = subwords[:maxLen-2]
 	}
 

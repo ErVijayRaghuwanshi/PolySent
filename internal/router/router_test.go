@@ -40,7 +40,8 @@ func TestRouterStrategies(t *testing.T) {
 		BaseURL: "http://localhost:11434",
 	})
 
-	r := router.NewRouter(t1, t2, t3)
+	tempLog := filepath.Join(t.TempDir(), "test_feedback.jsonl")
+	r := router.NewRouter(t1, t2, t3, tempLog)
 	ctx := context.Background()
 
 	// 1. Ultra Fast -> Tier 1
@@ -70,7 +71,7 @@ func TestRouterStrategies(t *testing.T) {
 	}
 
 	// 3. Fallback when Tier-2 is missing
-	rNoTier2 := router.NewRouter(t1, nil, nil)
+	rNoTier2 := router.NewRouter(t1, nil, nil, tempLog)
 	respFallback, err := rNoTier2.Route(ctx, &engine.Request{
 		Text:     "Great device",
 		Strategy: "balanced",

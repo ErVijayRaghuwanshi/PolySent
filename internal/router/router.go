@@ -28,12 +28,16 @@ type Router struct {
 }
 
 // NewRouter constructs a router with registered analyzers and RL bandit.
-func NewRouter(tier1, tier2, tier3 engine.Analyzer) *Router {
+func NewRouter(tier1, tier2, tier3 engine.Analyzer, optLogPath ...string) *Router {
+	logPath := "data/rl_feedback.jsonl"
+	if len(optLogPath) > 0 && optLogPath[0] != "" {
+		logPath = optLogPath[0]
+	}
 	return &Router{
 		tier1:  tier1,
 		tier2:  tier2,
 		tier3:  tier3,
-		bandit: NewContextualBandit("data/rl_feedback.jsonl"),
+		bandit: NewContextualBandit(logPath),
 	}
 }
 
@@ -75,6 +79,12 @@ func (r *Router) Route(ctx context.Context, req *engine.Request) (*engine.Respon
 			atomic.AddInt64(&r.metrics.Tier1Hits, 1)
 			resp, err = r.tier1.Analyze(ctx, req)
 		}
+		// Fallback to Tier 2 if Tier 1 is unconfigured
+		if resp == nil && err == nil && r.tier2 != nil {
+			atomic.AddInt64(&r.metrics.Fallbacks, 1)
+			atomic.AddInt64(&r.metrics.Tier2Hits, 1)
+			resp, err = r.tier2.Analyze(ctx, req)
+		}
 
 	case engine.StrategyBalanced:
 		if r.tier2 != nil {
@@ -115,9 +125,17 @@ func (r *Router) Route(ctx context.Context, req *engine.Request) (*engine.Respon
 	}
 
 	// Ultimate fallback to whichever analyzer is non-nil
-	if resp == nil && err == nil && r.tier1 != nil {
-		atomic.AddInt64(&r.metrics.Tier1Hits, 1)
-		resp, err = r.tier1.Analyze(ctx, req)
+	if resp == nil && err == nil {
+		if r.tier1 != nil {
+			atomic.AddInt64(&r.metrics.Tier1Hits, 1)
+			resp, err = r.tier1.Analyze(ctx, req)
+		} else if r.tier2 != nil {
+			atomic.AddInt64(&r.metrics.Tier2Hits, 1)
+			resp, err = r.tier2.Analyze(ctx, req)
+		} else if r.tier3 != nil {
+			atomic.AddInt64(&r.metrics.Tier3Hits, 1)
+			resp, err = r.tier3.Analyze(ctx, req)
+		}
 	}
 
 	if err != nil {

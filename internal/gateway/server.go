@@ -55,6 +55,9 @@ func (s *Server) Handler() http.Handler {
 }
 
 func (s *Server) handleAnalyze(w http.ResponseWriter, r *http.Request) {
+	// Guard against memory exhaustion with 1MB maximum payload
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+
 	var req engine.Request
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		s.respondError(w, http.StatusBadRequest, fmt.Sprintf("invalid JSON payload: %v", err))
@@ -81,6 +84,9 @@ func (s *Server) handleAnalyze(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleFeedback(w http.ResponseWriter, r *http.Request) {
+	// Guard against memory exhaustion with 1MB maximum payload
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+
 	var fb engine.FeedbackRequest
 	if err := json.NewDecoder(r.Body).Decode(&fb); err != nil {
 		s.respondError(w, http.StatusBadRequest, fmt.Sprintf("invalid JSON payload: %v", err))

@@ -22,7 +22,8 @@ func setupTestServer(t *testing.T) *gateway.Server {
 		t.Fatalf("Failed to initialize Tier-1: %v", err)
 	}
 
-	r := router.NewRouter(t1, nil, nil)
+	testLog := filepath.Join(t.TempDir(), "test_feedback.jsonl")
+	r := router.NewRouter(t1, nil, nil, testLog)
 	return gateway.NewServer(r)
 }
 

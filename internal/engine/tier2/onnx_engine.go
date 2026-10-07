@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -184,8 +185,14 @@ func (e *ONNXEngine) Analyze(ctx context.Context, req *engine.Request) (*engine.
 		session = s
 	}
 	defer func() {
-		// Return session back to pool
-		e.sessionPool <- session
+		// Return session back to pool safely without panicking on closed channel
+		e.mu.Lock()
+		defer e.mu.Unlock()
+		if e.isClosed {
+			session.Destroy()
+		} else {
+			e.sessionPool <- session
+		}
 	}()
 
 	// 4. Run inference
@@ -226,9 +233,9 @@ func (e *ONNXEngine) Analyze(ctx context.Context, req *engine.Request) (*engine.
 
 	elapsed := float64(time.Since(start).Microseconds()) / 1000.0
 
-	bestLabel := e.id2label[bestIdx]
+	bestLabel := strings.ToLower(e.id2label[bestIdx])
 	if bestLabel == "" {
-		bestLabel = fmt.Sprintf("CLASS_%d", bestIdx)
+		bestLabel = fmt.Sprintf("class_%d", bestIdx)
 	}
 
 	// Format response

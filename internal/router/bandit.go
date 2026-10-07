@@ -38,6 +38,7 @@ type ExperienceRecord struct {
 // ContextualBandit orchestrates exploration vs exploitation using Upper Confidence Bound (UCB1).
 type ContextualBandit struct {
 	mu           sync.RWMutex
+	fileMu       sync.Mutex
 	arms         map[string]*ArmStats
 	totalPulls   int64
 	cExploration float64 // Exploration hyperparameter (typically sqrt(2))
@@ -118,9 +119,9 @@ func (b *ContextualBandit) SelectArm(req *engine.Request) engine.Strategy {
 
 // RecordReward updates empirical arm statistics and appends to the experience replay log.
 func (b *ContextualBandit) RecordReward(fb *engine.FeedbackRequest) error {
-	b.mu.Lock()
-	defer b.mu.Unlock()
+	var record ExperienceRecord
 
+	b.mu.Lock()
 	b.totalPulls++
 
 	// Find corresponding arm
@@ -141,11 +142,11 @@ func (b *ContextualBandit) RecordReward(fb *engine.FeedbackRequest) error {
 	targetArm.AverageReward = targetArm.TotalReward / float64(targetArm.PullCount)
 
 	if fb.LatencyMs > 0 {
-		targetArm.AvgLatencyMs = (targetArm.AvgLatencyMs*0.9) + (fb.LatencyMs*0.1)
+		targetArm.AvgLatencyMs = (targetArm.AvgLatencyMs * 0.9) + (fb.LatencyMs * 0.1)
 	}
 
-	// Append experience to JSONL log
-	record := ExperienceRecord{
+	// Format experience record
+	record = ExperienceRecord{
 		Timestamp:      time.Now().UTC().Format(time.RFC3339),
 		RequestID:      fb.RequestID,
 		Text:           fb.Text,
@@ -156,7 +157,9 @@ func (b *ContextualBandit) RecordReward(fb *engine.FeedbackRequest) error {
 		LatencyMs:      fb.LatencyMs,
 		Comment:        fb.Comment,
 	}
+	b.mu.Unlock()
 
+	// Append experience to JSONL log outside the arm memory state lock
 	return b.appendLog(record)
 }
 
@@ -164,6 +167,10 @@ func (b *ContextualBandit) appendLog(rec ExperienceRecord) error {
 	if b.logPath == "" {
 		return nil
 	}
+
+	b.fileMu.Lock()
+	defer b.fileMu.Unlock()
+
 	dir := filepath.Dir(b.logPath)
 	_ = os.MkdirAll(dir, 0755)
 

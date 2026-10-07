@@ -23,13 +23,20 @@ func findDefaultONNXLib() string {
 	candidates := []string{
 		os.Getenv("ONNXRUNTIME_LIB_PATH"),
 		"lib/libonnxruntime.dylib",
+		"lib/libonnxruntime.so",
+		"/usr/lib/libonnxruntime.so",
+		"/usr/local/lib/libonnxruntime.so",
+		"/usr/lib/x86_64-linux-gnu/libonnxruntime.so",
+		"/usr/lib/aarch64-linux-gnu/libonnxruntime.so",
 		"/opt/homebrew/lib/libonnxruntime.dylib",
 		"/usr/local/lib/libonnxruntime.dylib",
 	}
 
-	// Also check Python virtual environment dynamic library
-	matches, _ := filepath.Glob("python/.venv/lib/python*/site-packages/onnxruntime/capi/libonnxruntime*.dylib")
-	candidates = append(candidates, matches...)
+	// Also check Python virtual environment dynamic libraries (.dylib and .so)
+	matchesDylib, _ := filepath.Glob("python/.venv/lib/python*/site-packages/onnxruntime/capi/libonnxruntime*.dylib")
+	matchesSo, _ := filepath.Glob("python/.venv/lib/python*/site-packages/onnxruntime/capi/libonnxruntime*.so*")
+	candidates = append(candidates, matchesDylib...)
+	candidates = append(candidates, matchesSo...)
 
 	for _, c := range candidates {
 		if c != "" {
@@ -52,6 +59,8 @@ func main() {
 	tier2Model := flag.String("tier2-model", "models/tier2_distilbert/model_int8.onnx", "Path to Tier-2 INT8 ONNX model")
 	tier2Tokenizer := flag.String("tier2-tokenizer", "models/tier2_distilbert/tokenizer.json", "Path to Tier-2 tokenizer.json or vocab.txt")
 	tier2Metadata := flag.String("tier2-metadata", "models/tier2_distilbert/metadata.json", "Path to Tier-2 metadata.json")
+	tier3URL := flag.String("tier3-url", "http://localhost:11434", "Base URL for Tier-3 LLM (Ollama or vLLM)")
+	tier3Model := flag.String("tier3-model", "llama3:8b", "Model identifier for Tier-3 LLM")
 	onnxLib := flag.String("onnx-lib", "", "Path to libonnxruntime dynamic library")
 	poolSize := flag.Int("pool-size", 4, "ONNX Runtime inference session pool size")
 	flag.Parse()
@@ -104,12 +113,23 @@ func main() {
 	}
 
 	// 3. Initialize Tier 3 (Local LLM Gateway Adapter)
+	llmURL := *tier3URL
+	if envURL := os.Getenv("TIER3_LLM_URL"); envURL != "" {
+		llmURL = envURL
+	} else if envOllama := os.Getenv("OLLAMA_BASE_URL"); envOllama != "" {
+		llmURL = envOllama
+	}
+	llmModel := *tier3Model
+	if envModel := os.Getenv("TIER3_LLM_MODEL"); envModel != "" {
+		llmModel = envModel
+	}
+
 	t3 := tier3.NewLLMAdapter(tier3.Config{
-		BaseURL: "http://localhost:11434",
-		Model:   "llama3:8b",
+		BaseURL: llmURL,
+		Model:   llmModel,
 		Timeout: 5 * time.Second,
 	})
-	log.Printf("[INIT] Tier 3 configured: Local LLM Adapter (fallback mode ready)")
+	log.Printf("[INIT] Tier 3 configured: Local LLM Adapter (%s @ %s)", llmModel, llmURL)
 
 	// 4. Construct Router & Gateway Server
 	r := router.NewRouter(t1, t2, t3)

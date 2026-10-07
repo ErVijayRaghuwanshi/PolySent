@@ -84,7 +84,8 @@ func (a *LLMAdapter) Analyze(ctx context.Context, req *engine.Request) (*engine.
 		return nil, fmt.Errorf("failed to marshal LLM request: %w", err)
 	}
 
-	endpoint := strings.TrimRight(a.cfg.BaseURL, "/") + "/v1/chat/completions"
+	baseURL := strings.TrimRight(a.cfg.BaseURL, "/")
+	endpoint := strings.TrimSuffix(baseURL, "/v1") + "/v1/chat/completions"
 	httpReq, err := http.NewRequestWithContext(ctx, "POST", endpoint, bytes.NewReader(bodyBytes))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create http request: %w", err)
@@ -144,6 +145,7 @@ func (a *LLMAdapter) Analyze(ctx context.Context, req *engine.Request) (*engine.
 		}
 	}
 
+	parsed.Label = strings.ToLower(parsed.Label)
 	if parsed.Label == "" {
 		parsed.Label = "neutral"
 		parsed.Score = 0.50
@@ -151,7 +153,7 @@ func (a *LLMAdapter) Analyze(ctx context.Context, req *engine.Request) (*engine.
 
 	elapsed := float64(time.Since(start).Microseconds()) / 1000.0
 
-	return &engine.Response{
+	apiResp := &engine.Response{
 		Status:     "success",
 		Task:       req.Task,
 		EngineUsed: a.Name(),
@@ -160,5 +162,19 @@ func (a *LLMAdapter) Analyze(ctx context.Context, req *engine.Request) (*engine.
 			Label: parsed.Label,
 			Score: parsed.Score,
 		},
-	}, nil
+	}
+
+	if req.Task == string(engine.TaskAspectBased) && len(req.Aspects) > 0 {
+		aspectResults := make([]engine.AspectResult, 0, len(req.Aspects))
+		for _, aspect := range req.Aspects {
+			aspectResults = append(aspectResults, engine.AspectResult{
+				Aspect:     aspect,
+				Sentiment:  parsed.Label,
+				Confidence: parsed.Score,
+			})
+		}
+		apiResp.Aspects = aspectResults
+	}
+
+	return apiResp, nil
 }

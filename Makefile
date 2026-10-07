@@ -42,9 +42,16 @@ run: build
 	@echo "==> Running Sentix Gateway on :8080..."
 	./bin/sentix -port 8080
 
-test:
-	@echo "==> Running Go unit tests..."
-	go test -v ./...
+test: test-go test-python
+
+test-go:
+	@echo "==> Running Go unit tests with race detector..."
+	go test -v -race ./...
+
+test-python:
+	@echo "==> Running Python verification and RL loop..."
+	$(PYTHON) python/sentix_ml/verify_inference.py
+	$(PYTHON) python/sentix_ml/rl_loop.py
 
 clean:
 	rm -rf bin/

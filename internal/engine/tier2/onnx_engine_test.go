@@ -35,8 +35,8 @@ func TestONNXEngineEndToEnd(t *testing.T) {
 		text          string
 		expectedClass string
 	}{
-		{"The display is crisp and vivid, truly amazing experience!", "POSITIVE"},
-		{"The customer service was frustratingly slow and completely useless.", "NEGATIVE"},
+		{"The display is crisp and vivid, truly amazing experience!", "positive"},
+		{"The customer service was frustratingly slow and completely useless.", "negative"},
 	}
 
 	ctx := context.Background()
@@ -99,8 +99,8 @@ func TestONNXEngineConcurrentPool(t *testing.T) {
 				t.Errorf("Worker %d failed: %v", id, err)
 				return
 			}
-			if resp.Overall.Label != "POSITIVE" {
-				t.Errorf("Worker %d expected POSITIVE, got %s", id, resp.Overall.Label)
+			if resp.Overall.Label != "positive" {
+				t.Errorf("Worker %d expected positive, got %s", id, resp.Overall.Label)
 			}
 		}(i)
 	}

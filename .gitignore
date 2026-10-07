@@ -21,6 +21,9 @@ bin/
 .DS_Store
 .idea/
 .vscode/
+*.ses
+:memory:.ses
+internal/gateway/data/
 
 # Large artifacts (keep INT8 & TF-IDF models, ignore raw large cache if needed)
 *.onnx.data
