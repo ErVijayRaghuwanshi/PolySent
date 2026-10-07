@@ -8,10 +8,15 @@ import (
 )
 
 func TestWordPieceTokenizer(t *testing.T) {
-	vocabPath := filepath.Join("..", "..", "models", "tier2_distilbert", "vocab.txt")
+	vocabPath := filepath.Join("..", "..", "models", "tier2_distilbert", "tokenizer.json")
 	tok, err := tokenizer.NewWordPieceTokenizer(vocabPath)
 	if err != nil {
-		t.Fatalf("Failed to initialize WordPieceTokenizer: %v", err)
+		// Fallback to vocab.txt
+		vocabPath = filepath.Join("..", "..", "models", "tier2_distilbert", "vocab.txt")
+		tok, err = tokenizer.NewWordPieceTokenizer(vocabPath)
+		if err != nil {
+			t.Fatalf("Failed to initialize WordPieceTokenizer: %v", err)
+		}
 	}
 
 	text := "The display is crisp and vivid, but customer service was slow."

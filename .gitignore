@@ -23,4 +23,5 @@ bin/
 .vscode/
 
 # Large artifacts (keep INT8 & TF-IDF models, ignore raw large cache if needed)
-models/
+*.onnx.data
+models/**/model_fp32.onnx
